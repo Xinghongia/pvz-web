@@ -32,33 +32,10 @@ jobs:
       - name: Build both games
         run: pnpm build
 
-      - name: Fit textures under Cloudflare's 25MiB per-file cap
+      - name: Trim enhanced texture pack (Cloudflare caps single file at 25MiB)
         run: |
           echo "== dist before: $(du -sh dist | cut -f1), files: $(find dist -type f | wc -l)"
-          OVER=$(find dist -type f -size +25M | wc -l)
-          echo "== oversized files: $OVER"
-          if [ "$OVER" -gt 0 ]; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq webp
-            LIMIT=$((24*1024*1024))
-            find dist -type f -size +25M -print0 | while IFS= read -r -d '' f; do
-              before=$(stat -c%s "$f")
-              ok=0
-              for q in 90 85 80 72 64 56; do
-                cwebp -quiet -q $q -m 4 -mt "$f" -o /tmp/out.webp 2>/dev/null || true
-                if [ -s /tmp/out.webp ]; then
-                  sz=$(stat -c%s /tmp/out.webp)
-                  if [ "$sz" -lt "$LIMIT" ]; then
-                    mv /tmp/out.webp "$f"
-                    echo "RE-ENCODED q$q: $(basename "$f") $((before/1024/1024))MB -> $((sz/1024/1024))MB"
-                    ok=1
-                    break
-                  fi
-                fi
-              done
-              [ "$ok" -eq 0 ] && echo "STILL TOO BIG: $f"
-            done
-          fi
+          rm -rf dist/pvz2/assets/quality/enhanced
           echo "== remaining oversized (must be empty):"
           find dist -type f -size +25M -print
           echo "== dist after: $(du -sh dist | cut -f1), files: $(find dist -type f | wc -l)"
